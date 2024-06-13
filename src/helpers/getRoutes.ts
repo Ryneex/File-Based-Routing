@@ -1,25 +1,27 @@
 import { glob } from "glob";
 import path from "path";
+import { type FastifyRequest, type FastifyReply } from "fastify";
 
 export type TRoute = {
     path: string;
-    method: string;
-    handler: (e: string) => unknown;
+    method: "get" | "post" | "put" | "delete";
+    handler: (req: FastifyRequest, res: FastifyReply) => unknown;
 };
 
 export async function getRoutes() {
-    const fileRouterPath = path.join(process.cwd(), "src/routes");
-    const routeFiles = await glob("**/route.ts", { cwd: fileRouterPath });
+    const fileRouterPath = path.resolve(__dirname, "..", "routes");
+    const routeFiles = await glob(["**/route.ts", "**/route.js"], { cwd: fileRouterPath });
     const routes: TRoute[] = [];
     const promises = routeFiles.map(async (filePath) => {
-        const dirs = filePath.split(path.sep);
+        const dirs = filePath.split(path.sep).map((e) => (e.startsWith("[") && e.endsWith("]") ? ":" + e.slice(1, e.length - 1) : e));
         dirs.pop();
         const exportedFunctions = await import(path.join(fileRouterPath, filePath));
         Object.keys(exportedFunctions).forEach((e) => {
-            if (["GET", "POST", "PUT", "DELETE"].includes(e)) {
+            const method = e.toLowerCase();
+            if (method === "get" || method === "post" || method === "put" || method === "delete") {
                 routes.push({
                     path: "/" + dirs.join("/"),
-                    method: e,
+                    method: method,
                     handler: exportedFunctions[e],
                 });
             } else {
